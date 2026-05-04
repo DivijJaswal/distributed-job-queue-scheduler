@@ -1,0 +1,28 @@
+{
+  "name": "Example reporting DAG",
+  "jobs": [
+    {
+      "key": "extract",
+      "queue": "bulk",
+      "type": "report.generate",
+      "requiredCapabilities": ["report"],
+      "payload": { "reportId": "daily", "rows": 500, "durationMs": 250 }
+    },
+    {
+      "key": "warm",
+      "queue": "default",
+      "type": "cache.warm",
+      "requiredCapabilities": ["cache"],
+      "dependsOn": ["extract"],
+      "payload": { "keyPattern": "report:daily:*", "durationMs": 200 }
+    },
+    {
+      "key": "notify",
+      "queue": "critical",
+      "type": "webhook.deliver",
+      "requiredCapabilities": ["webhook"],
+      "dependsOn": ["warm"],
+      "payload": { "endpoint": "https://example.com/report-ready", "durationMs": 200 }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "scope": "type",
+  "target": "webhook.deliver",
+  "limitCount": 10,
+  "windowMs": 60000,
+  "enabled": true
+}

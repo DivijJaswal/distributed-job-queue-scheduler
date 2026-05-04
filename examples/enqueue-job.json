@@ -1,0 +1,18 @@
+{
+  "queue": "critical",
+  "type": "webhook.deliver",
+  "priority": 10,
+  "timeoutMs": 5000,
+  "requiredCapabilities": ["webhook"],
+  "retryPolicy": {
+    "strategy": "exponential",
+    "baseMs": 2000,
+    "maxDelayMs": 60000,
+    "jitterMs": 500
+  },
+  "idempotencyKey": "example-webhook-001",
+  "payload": {
+    "endpoint": "https://example.com/incident",
+    "durationMs": 300
+  }
+}

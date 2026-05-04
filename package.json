@@ -1,0 +1,34 @@
+{
+  "name": "distributed-job-queue-scheduler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "yarn@1.22.22",
+  "description": "SQLite-backed distributed job queue and scheduler with worker leases, retries, dead-lettering, and a local dashboard.",
+  "scripts": {
+    "dev": "node src/server/server.mjs",
+    "start": "node src/server/server.mjs",
+    "worker": "node src/worker/worker.mjs",
+    "scheduler": "node src/worker/scheduler.mjs",
+    "autoscale": "node src/cli/autoscale.mjs",
+    "local": "node src/cli/local.mjs",
+    "seed": "node src/cli/seed.mjs",
+    "enqueue": "node src/cli/enqueue.mjs",
+    "load:test": "node src/cli/loadTest.mjs",
+    "demo:record": "node scripts/record-demo.mjs",
+    "test:e2e": "node test/e2e-dashboard-smoke.mjs",
+    "test": "node --test test/*.test.mjs",
+    "ci": "yarn test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "job-queue",
+    "scheduler",
+    "sqlite",
+    "distributed-workers",
+    "leases",
+    "retries"
+  ]
+}

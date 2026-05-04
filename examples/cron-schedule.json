@@ -1,0 +1,12 @@
+{
+  "name": "Five minute heartbeat",
+  "queue": "critical",
+  "type": "webhook.deliver",
+  "cronExpr": "*/5 * * * *",
+  "timeoutMs": 5000,
+  "requiredCapabilities": ["webhook"],
+  "payload": {
+    "endpoint": "https://example.com/heartbeat",
+    "durationMs": 200
+  }
+}

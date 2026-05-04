@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Distributed Job Queue + Scheduler</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Local Async Control Plane</p>
+        <h1>Distributed Job Queue + Scheduler</h1>
+      </div>
+      <div class="topbar__meta">
+        <span id="healthPill" class="pill pill--muted">Checking server</span>
+        <button id="seedDemo" type="button" class="button button--primary">Seed Demo</button>
+        <button id="refreshState" type="button" class="button button--ghost">Refresh</button>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="metrics" aria-label="Queue metrics">
+        <article>
+          <span>Queued</span>
+          <strong id="metricQueued">0</strong>
+        </article>
+        <article>
+          <span>Running</span>
+          <strong id="metricRunning">0</strong>
+        </article>
+        <article>
+          <span>Completed</span>
+          <strong id="metricCompleted">0</strong>
+        </article>
+        <article>
+          <span>Dead Letter</span>
+          <strong id="metricDeadLetter">0</strong>
+        </article>
+        <article>
+          <span>Workers</span>
+          <strong id="metricWorkers">0</strong>
+        </article>
+      </section>
+
+      <section class="panel chart-panel" aria-label="Throughput chart">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Throughput</p>
+            <h2>Completed vs Dead Letter</h2>
+          </div>
+        </div>
+        <div id="throughputChart" class="chart"></div>
+      </section>
+
+      <section class="layout">
+        <aside class="panel stack">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Queue Setup</p>
+              <h2>Queues</h2>
+            </div>
+          </div>
+          <form id="queueForm" class="form">
+            <label>
+              Queue Name
+              <input name="name" required value="default">
+            </label>
+            <label>
+              Queue Concurrency
+              <input name="concurrency" type="number" min="1" max="100" value="4">
+            </label>
+            <label>
+              Max Backlog
+              <input name="maxBacklog" type="number" min="1" max="1000000" value="10000">
+            </label>
+            <div class="field-grid">
+              <label>
+                Rate Limit Count
+                <input name="rateLimitCount" type="number" min="1" placeholder="optional">
+              </label>
+              <label>
+                Rate Window Seconds
+                <input name="rateLimitWindowSeconds" type="number" min="1" placeholder="60">
+              </label>
+            </div>
+            <label>
+              Queue Retry Policy JSON
+              <textarea name="retryPolicy" rows="4" spellcheck="false" placeholder='{"strategy":"exponential","baseMs":2000,"maxDelayMs":300000,"jitterMs":500}'></textarea>
+            </label>
+            <label class="toggle-row">
+              <input name="enabled" type="checkbox" checked>
+              Enabled
+            </label>
+            <button type="submit" class="button button--primary">Save Queue</button>
+          </form>
+          <div id="queuesList" class="list"></div>
+
+          <div class="divider"></div>
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Throttle</p>
+              <h2>Rate Limits</h2>
+            </div>
+          </div>
+          <form id="rateLimitForm" class="form">
+            <label>
+              Job Type
+              <input name="target" required value="webhook.deliver">
+            </label>
+            <div class="field-grid">
+              <label>
+                Limit
+                <input name="limitCount" type="number" min="1" value="10">
+              </label>
+              <label>
+                Window Seconds
+                <input name="windowSeconds" type="number" min="1" value="60">
+              </label>
+            </div>
+            <label class="toggle-row">
+              <input name="enabled" type="checkbox" checked>
+              Enabled
+            </label>
+            <button type="submit" class="button">Save Type Limit</button>
+          </form>
+          <div id="rateLimitsList" class="list"></div>
+        </aside>
+
+        <section class="stack">
+          <section class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Dispatch</p>
+                <h2>Enqueue Job</h2>
+              </div>
+            </div>
+            <form id="jobForm" class="form">
+              <div class="field-grid">
+                <label>
+                  Queue
+                  <select id="jobQueue" name="queue"></select>
+                </label>
+                <label>
+                  Job Type
+                  <select name="type">
+                    <option value="email.digest">email.digest</option>
+                    <option value="webhook.deliver">webhook.deliver</option>
+                    <option value="report.generate">report.generate</option>
+                    <option value="billing.reconcile">billing.reconcile</option>
+                    <option value="cache.warm">cache.warm</option>
+                    <option value="generic.job">generic.job</option>
+                  </select>
+                </label>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Priority
+                  <input name="priority" type="number" min="-1000" max="1000" value="5">
+                </label>
+                <label>
+                  Max Attempts
+                  <input name="maxAttempts" type="number" min="1" max="50" value="3">
+                </label>
+              </div>
+              <label>
+                Run At
+                <input name="runAt" type="datetime-local">
+              </label>
+              <label>
+                Idempotency Key
+                <input name="idempotencyKey" placeholder="optional unique key">
+              </label>
+              <label>
+                Depends On Job IDs
+                <input name="dependsOn" placeholder="comma-separated parent job ids">
+              </label>
+              <div class="field-grid">
+                <label>
+                  Timeout Milliseconds
+                  <input name="timeoutMs" type="number" min="1" placeholder="optional">
+                </label>
+                <label>
+                  Required Capabilities
+                  <input name="requiredCapabilities" placeholder="email,webhook,report">
+                </label>
+              </div>
+              <label>
+                Retry Policy JSON
+                <textarea name="retryPolicy" rows="4" spellcheck="false" placeholder='{"strategy":"fixed","baseMs":1000,"maxDelayMs":5000,"jitterMs":250}'></textarea>
+              </label>
+              <label>
+                Payload JSON
+                <textarea name="payload" rows="7" spellcheck="false"></textarea>
+              </label>
+              <button type="submit" class="button button--primary">Enqueue Job</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Failure Lab</p>
+                <h2>Inject Scenario</h2>
+              </div>
+            </div>
+            <form id="failureForm" class="form">
+              <label>
+                Scenario
+                <select name="scenario">
+                  <option value="retryable">retryable failure</option>
+                  <option value="timeout">timeout</option>
+                  <option value="permanent">permanent failure</option>
+                  <option value="rate_burst">rate-limited burst</option>
+                  <option value="dependency">dependency failure</option>
+                </select>
+              </label>
+              <button type="submit" class="button">Inject Failure</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Recurring Work</p>
+                <h2>Schedules</h2>
+              </div>
+              <button id="runSchedulerTick" type="button" class="button">Run Scheduler Tick</button>
+            </div>
+            <form id="scheduleForm" class="form">
+              <div class="field-grid">
+                <label>
+                  Schedule Name
+                  <input name="name" required placeholder="Heartbeat fanout">
+                </label>
+                <label>
+                  Queue
+                  <select id="scheduleQueue" name="queue"></select>
+                </label>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Job Type
+                  <input name="type" required value="webhook.deliver">
+                </label>
+                <label>
+                  Interval Seconds
+                  <input name="intervalSeconds" type="number" min="1" value="30">
+                </label>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Schedule Mode
+                  <select name="scheduleKind">
+                    <option value="interval">interval</option>
+                    <option value="cron">cron</option>
+                  </select>
+                </label>
+                <label>
+                  Cron Expression
+                  <input name="cronExpr" placeholder="*/5 * * * *">
+                </label>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Priority
+                  <input name="priority" type="number" min="-1000" max="1000" value="3">
+                </label>
+                <label>
+                  Max Attempts
+                  <input name="maxAttempts" type="number" min="1" max="50" value="3">
+                </label>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Timeout Milliseconds
+                  <input name="timeoutMs" type="number" min="1" placeholder="optional">
+                </label>
+                <label>
+                  Required Capabilities
+                  <input name="requiredCapabilities" placeholder="webhook,report">
+                </label>
+              </div>
+              <label>
+                Retry Policy JSON
+                <textarea name="retryPolicy" rows="4" spellcheck="false" placeholder='{"strategy":"exponential","baseMs":2000,"maxDelayMs":60000,"jitterMs":500}'></textarea>
+              </label>
+              <label>
+                Payload JSON
+                <textarea name="payload" rows="5" spellcheck="false"></textarea>
+              </label>
+              <button type="submit" class="button">Create Schedule</button>
+            </form>
+            <div id="schedulesList" class="list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">DAG</p>
+                <h2>Workflow Builder</h2>
+              </div>
+            </div>
+            <form id="workflowForm" class="form">
+              <label>
+                Workflow Name
+                <input name="name" required value="ETL notification workflow">
+              </label>
+              <label>
+                Jobs JSON
+                <textarea name="jobs" rows="9" spellcheck="false"></textarea>
+              </label>
+              <button type="submit" class="button">Create Workflow</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Operations</p>
+                <h2>Jobs</h2>
+              </div>
+              <div class="topbar__meta">
+                <button id="replayDeadLetters" type="button" class="button">Replay Dead Letters</button>
+                <button id="recoverLeases" type="button" class="button">Recover Expired Leases</button>
+              </div>
+            </div>
+            <form id="jobFilterForm" class="form compact-form">
+              <div class="field-grid">
+                <label>
+                  Search
+                  <input name="q" placeholder="job id, type, payload, error">
+                </label>
+                <label>
+                  Status
+                  <select name="status">
+                    <option value="">all</option>
+                    <option value="queued">queued</option>
+                    <option value="scheduled">scheduled</option>
+                    <option value="waiting_dependencies">waiting_dependencies</option>
+                    <option value="running">running</option>
+                    <option value="completed">completed</option>
+                    <option value="cancelled">cancelled</option>
+                    <option value="dead_letter">dead_letter</option>
+                  </select>
+                </label>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Queue
+                  <select name="queue">
+                    <option value="">all</option>
+                  </select>
+                </label>
+                <label>
+                  Type
+                  <input name="type" placeholder="webhook.deliver">
+                </label>
+              </div>
+              <div class="job-row__actions">
+                <button type="submit" class="button">Apply Filters</button>
+                <button id="resetJobFilters" type="button" class="button button--ghost">Reset</button>
+              </div>
+            </form>
+            <div id="jobsList" class="jobs-table"></div>
+          </section>
+        </section>
+
+        <aside class="panel stack">
+          <div>
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Compute</p>
+                <h2>Workers</h2>
+              </div>
+            </div>
+            <div id="workersList" class="list"></div>
+          </div>
+
+          <div>
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Pools</p>
+                <h2>Worker Capacity</h2>
+              </div>
+            </div>
+            <div id="workerPoolsList" class="list"></div>
+          </div>
+
+          <div>
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Idempotency</p>
+                <h2>Duplicate Saves</h2>
+              </div>
+            </div>
+            <div id="idempotencyPanel" class="list"></div>
+          </div>
+
+          <div>
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Control Loop</p>
+                <h2>Autoscale</h2>
+              </div>
+              <button id="refreshAutoscale" type="button" class="button">Refresh</button>
+            </div>
+            <div id="autoscalePanel" class="list"></div>
+          </div>
+
+          <div>
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Queue Health</p>
+                <h2>Backlog</h2>
+              </div>
+            </div>
+            <div id="queueHealth" class="list"></div>
+          </div>
+
+          <div>
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Audit</p>
+                <h2>Events</h2>
+              </div>
+            </div>
+            <div id="eventsList" class="timeline"></div>
+          </div>
+
+          <div>
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Portability</p>
+                <h2>Backup</h2>
+              </div>
+              <button id="exportSnapshot" type="button" class="button">Export JSON</button>
+            </div>
+            <form id="importSnapshotForm" class="form">
+              <label>
+                Snapshot JSON
+                <textarea id="importSnapshotText" name="snapshot" rows="5" spellcheck="false"></textarea>
+              </label>
+              <button type="submit" class="button">Import Merge</button>
+            </form>
+          </div>
+
+          <div>
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Maintenance</p>
+                <h2>SQLite Ops</h2>
+              </div>
+            </div>
+            <div class="job-row__actions">
+              <button id="vacuumDatabase" type="button" class="button">Vacuum</button>
+              <button id="pruneEvents" type="button" class="button">Prune Events</button>
+              <button id="archiveJobs" type="button" class="button">Archive Jobs</button>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+    <aside id="jobDrawer" class="drawer" hidden aria-label="Job detail">
+      <div class="panel__header">
+        <div>
+          <p class="eyebrow">Job Detail</p>
+          <h2 id="jobDrawerTitle">Job</h2>
+        </div>
+        <button id="closeJobDrawer" type="button" class="button button--ghost">Close</button>
+      </div>
+      <div id="jobDrawerBody" class="drawer__body"></div>
+    </aside>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
